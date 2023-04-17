@@ -12,7 +12,6 @@
 #define BLYNK_PRINT Serial
 #define RX_PIN 16
 #define TX_PIN 17
-#define BAUD_RATE 9600
 
 #define OLED_RESET -1
 #define SCREEN_WIDTH 128
@@ -22,6 +21,7 @@ BlynkTimer timer;
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 SoftwareSerial gpsSerial(RX_PIN, TX_PIN);
 TinyGPSPlus gps ;
+TinyGPSCustom zdop(gps, "GPVTG", 7);
 String googleMapsURL ;
 String areaState ;
 
@@ -31,7 +31,7 @@ int pauseDuration = 50;
 bool isBuzzerOn = false;
 bool isInside = false;
 
-// Define global variables for the area square with a side length of 0.3 km
+// Define global variables for the area square with a side length of 0.2 km
 float lat1, lon1, lat2, lon2;
 
 BLYNK_WRITE(V4){
@@ -45,7 +45,7 @@ BLYNK_WRITE(V4){
 
 BLYNK_WRITE(V8){
   if(param.asInt()){
-    timer.setTimeout(1000, calculateArea);
+    calculateArea();
     Blynk.virtualWrite(V6, (String(lat1, 6) + ", " + String(lat2, 6)));
     Blynk.virtualWrite(V7, (String(lon1, 6) + ", " + String(lon2, 6)));
     LINE.notify("Your location was set on: x1:" + String(lat1, 6) + ", x2: " + String(lat2, 6) + ", y1: " + String(lon1, 6) + ", y2: " + String(lon2, 6));
@@ -69,7 +69,7 @@ void setup() {
   pinMode(buzzerPin, OUTPUT);
   digitalWrite(buzzerPin, LOW);
   Serial.begin(115200);
-  gpsSerial.begin(BAUD_RATE);
+  gpsSerial.begin(9600);
   
   //set display OLED display 
   display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
@@ -91,7 +91,7 @@ void setup() {
   checkBlynk();
 
   //check GPS Fixtion
-  // checkGPS();
+  checkGPS();
 
   areaState = "notset";
 }
@@ -174,22 +174,34 @@ void checkBlynk(){
 }
 
 void loop() {
-  char location = gpsSerial.read();
-  gps.encode(location);
+  // byte gpsData = gpsSerial.read();
+  // Serial.write(gpsData);
 
-  checkArea();
-  blynkDisplay();
-  display.clearDisplay();
-  showBattery();
-  displayLocation();
-  displayDateTime();
-  display.display();
+  while(gpsSerial.available() > 0){
+  // get the byte data from the GPS
+    gps.encode(gpsSerial.read());
+    if (gps.location.isUpdated()){
+      // Serial.print("Latitude= "); 
+      // Serial.print(gps.location.lat(), 6);
+      // Serial.print(" Longitude= "); 
+      // Serial.println(gps.location.lng(), 6);
 
-  if(isBuzzerOn == 1){
-    playTune();    
+      checkArea();
+      blynkDisplay();
+      display.clearDisplay();
+      showBattery();
+      displayLocation();
+      displayDateTime();
+      display.display();
+
+      if(isBuzzerOn == 1){
+        playTune();    
+      }
+
+      Blynk.run(); 
+    }
   }
 
-  Blynk.run();  
 }
 
 void displayLocation() {
@@ -239,10 +251,11 @@ void blynkDisplay(){
 }
 
 void calculateArea() {
-  // Calculate the area of the square with a side length of 0.3 km around the current location
-  float sideLength = 0.3;
+  // Calculate the area of the square with a side length of 0.2 km around the current location
+  float sideLength = 0.2;
   float lat = gps.location.lat();
   float lon = gps.location.lng();
+
   Serial.println("In calculateArea");
   
   // Calculate the distance in degrees for the given side length
@@ -306,7 +319,6 @@ void displayDateTime() {
   display.print("Time: ");
   display.print(timeStr);
   display.display();
-
 }
 
 void showBattery(){
